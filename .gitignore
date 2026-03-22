@@ -1,0 +1,21 @@
+# Node
+node_modules/
+build/
+dist/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Env
+.env
+
+# Uploads (VERY IMPORTANT)
+uploads/
+*.mp4
+*.wav
+
+# OS
+.DS_Store
+Thumbs.db
