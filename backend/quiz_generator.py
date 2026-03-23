@@ -1,4 +1,4 @@
-import google.genai as genai
+import google.generativeai as genai
 import json
 import re
 import os
@@ -6,9 +6,18 @@ from dotenv import load_dotenv
 import time
 load_dotenv()  # Load environment variables from .env file
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+else:
+    model = None
 
 def generate_quiz(transcript, qtype="mcq", bloom="understand", num=5):
+    if not model:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+
     transcript = transcript[:10000]
 
     prompt = f"""
@@ -62,12 +71,8 @@ TEXT:
 
     for attempt in range(3):
         try:
-            response = client.models.generate_content(
-                model="gemini-flash-lite-latest",
-                contents=prompt
-            )
-
-            content = response.text.strip()
+            response = model.generate_content(prompt)
+            content = (response.text or "").strip()
 
             # 🔥 CLEAN RESPONSE
             content = re.sub(r"```json|```", "", content).strip()

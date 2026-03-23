@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   darkMode: "class", // ✅ IMPORTANT
   content: ["./src/**/*.{js,jsx}"],
   theme: {

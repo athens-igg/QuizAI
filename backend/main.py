@@ -1,5 +1,7 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, UploadFile, File
+from database import engine
+from models import Base
 import shutil
 import os
 
@@ -19,6 +21,9 @@ UPLOAD_DIR = "../uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app.include_router(auth_router)
+
+# THIS LINE CREATES TABLES
+Base.metadata.create_all(bind=engine)
 
 # =========================
 # 🔥 UTILS

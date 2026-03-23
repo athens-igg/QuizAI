@@ -19,7 +19,7 @@ export default function Login({ setScreen, darkMode, setDarkMode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username: email, password }),
+        body: JSON.stringify({ email: email, password: password }),
       });
 
       const data = await res.json();
