@@ -9,7 +9,7 @@ export default function Setup({
   setBloomLevel,
   mode,
   setMode,
-  setQuiz, darkMode, setDarkMode
+  setQuiz, setQuizId, darkMode, setDarkMode
 }) {
   const [loading, setLoading] = useState(false);
   const [fileLocal, setFileLocal] = useState(null);
@@ -86,6 +86,7 @@ const getEmbedUrl = (url) => {
     }
 
     setQuiz(data.quiz);
+    setQuizId(data.quiz_id);
     setScreen("quiz");
   } catch (err) {
     alert("Something went wrong!");

@@ -14,7 +14,7 @@ function App() {
   const [quiz, setQuiz] = useState([]);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
-
+  const [quizId, setQuizId] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
 
   const [quizType, setQuizType] = useState("mcq");
@@ -50,6 +50,7 @@ function App() {
             mode={mode}
             setMode={setMode}
             setQuiz={setQuiz}
+            setQuizId={setQuizId} 
             darkMode={darkMode} setDarkMode={setDarkMode}
           />
         )}
@@ -57,6 +58,7 @@ function App() {
         {screen === "quiz" && (
           <Quiz
             quiz={quiz}
+            quizId={quizId}
             answers={answers}
             setAnswers={setAnswers}
             setResult={setResult}

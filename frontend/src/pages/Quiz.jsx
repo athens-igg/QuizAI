@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 
 export default function Quiz({
   quiz = [],
+  quizId,
   answers = {},
   setAnswers,
   setResult,
@@ -16,7 +17,7 @@ export default function Quiz({
   useEffect(() => {
     setSelectedOption(answers[currentQ] || null);
   }, [currentQ, answers]);
-
+  
   const handleSelect = (option) => {
     setSelectedOption(option);
 
@@ -28,15 +29,17 @@ export default function Quiz({
 
   const handleNext = () => setCurrentQ((prev) => prev + 1);
   const handlePrev = () => setCurrentQ((prev) => prev - 1);
-
+  const token = localStorage.getItem("token");
   const submitQuiz = async () => {
     try {
       const res = await fetch("http://127.0.0.1:8000/evaluate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": "Bearer " + token, 
+          
         },
-        body: JSON.stringify({ answers, quiz }),
+        body: JSON.stringify({ answers, quiz, quiz_id: quizId })
       });
 
       const data = await res.json();

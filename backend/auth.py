@@ -101,4 +101,4 @@ def login(user: User, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Wrong password")
 
     token = create_token(user.email)
-    return {"token": token}
+    return {"token": token,"token_type": "bearer"}

@@ -8,7 +8,9 @@ export default function Result({
   darkMode,
   setDarkMode,
 }) {
-  if (!result) return null;
+  if (!result) {
+  return <div>No result available</div>;
+}
 
   return (
     <div className={darkMode ? "dark" : ""}>
@@ -62,7 +64,7 @@ export default function Result({
             </p>
 
             <p className="text-lg text-gray-800 dark:text-gray-300">
-              {result.percentage.toFixed(2)}%
+              {(result?.percentage || 0).toFixed(0)}%
             </p>
 
             <p className="text-lg text-gray-800 dark:text-gray-300">

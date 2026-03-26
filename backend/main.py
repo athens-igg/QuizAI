@@ -2,10 +2,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, UploadFile, File, Depends
 from database import engine, get_db
 from sqlalchemy.orm import Session
-from models import Base, Video, Quiz, Question
+from models import Base, Video, Quiz, Question, Attempt, Answer
 from models import UserDB
 import shutil
 import os
+from sqlalchemy import func
 
 from video_processor import extract_audio
 from transcription import transcribe_audio
@@ -317,28 +318,127 @@ async def process_youtube(data: dict, qtype: str = "mcq", bloom: str = "understa
 # =========================
 # 🧠 EVALUATION
 # =========================
-
 @app.post("/evaluate")
-async def evaluate(data: dict):
+async def evaluate(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     answers = data.get("answers", {})
-    quiz = data.get("quiz", [])
+    quiz_id = data.get("quiz_id")
+
+    # ✅ FETCH QUESTIONS FROM DB
+    questions = db.query(Question).filter(Question.quiz_id == quiz_id).all()
+    total = len(questions)
 
     correct = 0
-    total = len(quiz)
 
-    for i in range(total):
+    # ✅ CREATE ATTEMPT
+    attempt = Attempt(
+        user_id=current_user.id,
+        quiz_id=quiz_id,
+        score=0
+    )
+    db.add(attempt)
+    db.flush()  # get attempt.id
+
+    # ✅ LOOP THROUGH QUESTIONS
+    for i, q in enumerate(questions):
         user_ans = answers.get(str(i)) or answers.get(i)
-        correct_ans = quiz[i]["answer"]
 
-        if user_ans and user_ans.strip().lower() == correct_ans.strip().lower():
+        is_correct = (
+            user_ans and user_ans.strip().lower() == str(q.correct_answer).strip().lower()
+        )
+
+        if is_correct:
             correct += 1
+
+        db.add(Answer(
+            attempt_id=attempt.id,
+            question_id=q.id,   # ✅ correct
+            selected_answer=user_ans,
+            is_correct=is_correct
+        ))
+
+    # ✅ FINAL SCORE UPDATE
+    attempt.score = correct
+
+    db.commit()
 
     return {
         "score": correct,
         "total": total,
         "percentage": (correct / total) * 100 if total > 0 else 0
     }
+"""
+@app.post("/evaluate")
+async def evaluate(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    answers = data.get("answers", {})
+    quiz = data.get("quiz", [])
+    quiz_id = data.get("quiz_id")
 
+    correct = 0
+    total = len(quiz)
+
+    # 🔥 REMOVE OLD ATTEMPTS (important)
+    #db.query(Attempt).filter(
+    #    Attempt.quiz_id == quiz_id,
+    #    Attempt.user_id == current_user.id
+    #).delete()
+
+    
+
+    for i in range(total):
+        user_ans = answers.get(str(i)) or answers.get(i)
+        correct_ans = quiz[i]["answer"]
+
+
+        is_correct = (
+            user_ans and user_ans.strip().lower() == correct_ans.strip().lower()
+        )
+
+        if is_correct:
+            correct += 1
+        # Calculate total score first
+        
+        # Check if the user already has an attempt for this quiz
+        existing_attempt = db.query(Attempt).filter(
+            Attempt.user_id == current_user.id,
+            Attempt.quiz_id == quiz_id
+        ).first()
+
+        if existing_attempt:
+            # Update the existing attempt
+            existing_attempt.score = correct
+        else:    
+            db.add(Attempt(
+                user_id=current_user.id,
+                quiz_id=quiz_id,
+                score=1 if is_correct else 0
+            ))
+
+    db.commit()    
+
+    # ✅ UPDATE quiz_score (SUM of attempts)
+    total_score = db.query(func.sum(Attempt.score)).filter(
+        Attempt.quiz_id == quiz_id
+    ).scalar() or 0
+
+    quiz_db = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+
+    if quiz_db:
+        quiz_db.quiz_score = total_score
+        db.commit()
+    return {
+        "score": correct,
+        "total": total,
+        "percentage": (correct / total) * 100 if total > 0 else 0
+    }
+"""
 @app.get("/dashboard")
 def get_dashboard(
     db: Session = Depends(get_db),
@@ -362,7 +462,7 @@ def get_dashboard(
         result.append({
             "id": quiz.id,
             "title": f"Quiz {quiz.id}",
-            "score": 0,   # placeholder for now
+            "score": quiz.quiz_score or 0,   # placeholder for now
             "total": total
         })
 
