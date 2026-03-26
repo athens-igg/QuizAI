@@ -3,10 +3,11 @@ uvicorn[standard]
 python-multipart
 google-generativeai
 openai-whisper
-moviepy
 python-dotenv
 python-jose[cryptography]
 passlib[bcrypt]
+psycopg2-binary
+sqlalchemy
 youtube-transcript-api
 yt-dlp
-
+

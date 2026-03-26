@@ -1,7 +1,9 @@
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, UploadFile, File
-from database import engine
-from models import Base
+from fastapi import FastAPI, UploadFile, File, Depends
+from database import engine, get_db
+from sqlalchemy.orm import Session
+from models import Base, Video, Quiz, Question
+from models import UserDB
 import shutil
 import os
 
@@ -9,6 +11,7 @@ from video_processor import extract_audio
 from transcription import transcribe_audio
 from quiz_generator import generate_quiz
 from auth import router as auth_router
+from auth import get_current_user
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
@@ -38,10 +41,14 @@ def extract_video_id(url: str):
 
 
 def get_transcript_from_youtube(url):
+    import time
     video_id = extract_video_id(url)
 
     if not video_id:
         raise Exception("Invalid YouTube URL")
+
+    # ⏳ Delay BEFORE hitting YouTube
+    time.sleep(1.5)
 
     # =========================
     # ✅ TRY 1: Transcript API (FAST)
@@ -133,18 +140,87 @@ async def process_video(
 # =========================
 
 @app.post("/process-youtube")
-async def process_youtube(data: dict, qtype: str = "mcq", bloom: str = "understand"):
+async def process_youtube(
+    data: dict,
+    qtype: str = "mcq",
+    bloom: str = "understand",
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
     try:
         url = data.get("url")
 
-        transcript = get_transcript_from_youtube(url)
+        if not url:
+            return {"error": "URL missing", "quiz": []}
 
+        # ✅ CACHE FIRST
+        existing_video = db.query(Video).filter(Video.video_url == url).first()
+
+        if existing_video:
+            print("⚡ Using cached transcript")
+            transcript = existing_video.transcript
+        else:
+            try:
+                transcript = get_transcript_from_youtube(url)
+            except Exception as e:
+                print("⚠️ Transcript failed:", e)
+                return {"error": "Could not fetch transcript", "quiz": []}
+
+        # ✅ VALIDATE
         if not transcript or len(transcript) < 50:
             return {"error": "Transcript too short", "quiz": []}
 
-        quiz = generate_quiz(transcript, qtype, bloom, 5)
+        # ✅ GENERATE QUIZ
+        try:
+            quiz = generate_quiz(transcript, qtype, bloom, 5)
+        except Exception as e:
+            print("❌ Quiz generation failed:", e)
+            return {"error": "Quiz generation failed", "quiz": []}
+
+        # ✅ SAVE VIDEO ONLY IF NEW
+        if not existing_video:
+            new_video = Video(
+                user_id=current_user.id,
+                video_url=url,
+                transcript=transcript
+            )
+            db.add(new_video)
+            db.commit()
+            db.refresh(new_video)
+        else:
+            new_video = existing_video
+
+        # ✅ SAVE QUIZ
+        new_quiz = Quiz(
+            user_id=current_user.id,
+            video_id=new_video.id
+        )
+        db.add(new_quiz)
+        db.commit()
+        db.refresh(new_quiz)
+
+        # ✅ SAVE QUESTIONS
+        for q in quiz:
+            options = q.get("options", [])
+
+            if len(options) < 4:
+                print("⚠️ Skipping invalid question:", q)
+                continue
+            new_question = Question(
+                quiz_id=new_quiz.id,
+                question_text=q["question"],
+                option1=q["options"][0],
+                option2=q["options"][1],
+                option3=q["options"][2],
+                option4=q["options"][3],
+                correct_answer=q["answer"]
+            )
+            db.add(new_question)
+
+        db.commit()
 
         return {
+            "quiz_id": new_quiz.id,
             "transcript": transcript,
             "quiz": quiz
         }
@@ -156,6 +232,87 @@ async def process_youtube(data: dict, qtype: str = "mcq", bloom: str = "understa
             "quiz": []
         }
 
+"""
+@app.post("/process-youtube")
+async def process_youtube(data: dict, qtype: str = "mcq", bloom: str = "understand", db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    try:
+        url = data.get("url")
+        transcript=None
+        try:
+            transcript = get_transcript_from_youtube(url)
+        except Exception as e:
+            print("⚠️ Transcript API failed:", e)
+            #transcript = None   
+
+        #if not transcript or len(transcript) < 50:
+        #if len(transcript) < 50:
+        #    return {"error": "Transcript too short", "quiz": []}
+
+        if not transcript:
+            return {"error": "Could not fetch transcript", "quiz": []}
+        #    try:
+        #        transcript = get_transcript_with_ytdlp(url)
+        #    except Exception as e:
+        #        print("❌ Fallback failed:", e)
+        #        return {"error": "Could not fetch transcript", "quiz": []}    
+        if len(transcript) < 50:
+            return {"error": "Transcript too short", "quiz": []}
+        quiz = generate_quiz(transcript, qtype, bloom, 5)
+
+        # ✅ SAVE TO DATABASE
+        new_video = Video(
+            #user_id=1,  # 🔥 replace later with logged-in user
+            user_id = current_user.id,
+            video_url=url,
+            transcript=transcript
+        )
+        db.add(new_video)
+        db.commit()
+        db.refresh(new_video)
+
+        # ✅ SAVE QUIZ
+        new_quiz = Quiz(
+            #user_id=1   # 🔥 replace later with logged-in user
+            user_id = current_user.id,
+            video_id=new_video.id
+        )
+        #uncomment if needed
+        db.add(new_quiz)
+        db.commit()
+        db.refresh(new_quiz)
+
+        for q in quiz:
+            new_question = Question(
+                quiz_id=new_quiz.id,
+                question_text=q["question"],
+                option1=q["options"][0],
+                option2=q["options"][1],
+                option3=q["options"][2],
+                option4=q["options"][3],
+                correct_answer=q["answer"]
+            )
+        
+            db.add(new_question)
+        
+        db.commit()
+        #db.add(new_quiz)
+        #db.commit()
+        #db.refresh(new_quiz)
+
+
+        return {
+            "quiz_id": new_quiz.id,  # 🔥 useful for later
+            "transcript": transcript,
+            "quiz": quiz
+        }
+
+    except Exception as e:
+        print("❌ ERROR:", e)
+        return {
+            "error": str(e),
+            "quiz": []
+        }
+"""
 
 # =========================
 # 🧠 EVALUATION
@@ -182,7 +339,40 @@ async def evaluate(data: dict):
         "percentage": (correct / total) * 100 if total > 0 else 0
     }
 
+@app.get("/dashboard")
+def get_dashboard(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    quizzes = (
+        db.query(Quiz)
+        .filter(Quiz.user_id == current_user.id)
+        .order_by(Quiz.id.desc())
+        .all()
+    )
 
+    result = []
+
+    for quiz in quizzes:
+        questions = db.query(Question).filter(Question.quiz_id == quiz.id).all()
+
+        total = len(questions)
+
+        # ⚠️ You can improve this later with real scores
+        result.append({
+            "id": quiz.id,
+            "title": f"Quiz {quiz.id}",
+            "score": 0,   # placeholder for now
+            "total": total
+        })
+
+    return {
+        "user": {
+            "name": current_user.name,
+            "email": current_user.email
+        },
+        "recent_quizzes": result
+    }
 # =========================
 # 🌐 CORS
 # =========================

@@ -4,6 +4,8 @@ export default function Signup({ setScreen, darkMode, setDarkMode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,7 +39,7 @@ export default function Signup({ setScreen, darkMode, setDarkMode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: email, password: password }),
+        body: JSON.stringify({ email: email, password: password, name: name, description: description}),
       });
 
       const data = await res.json();
@@ -159,6 +161,22 @@ export default function Signup({ setScreen, darkMode, setDarkMode }) {
                 className="w-full p-3 rounded-xl border bg-white/70 dark:bg-gray-700 dark:text-white dark:border-gray-600"
                 onChange={(e) => setConfirm(e.target.value)}
                 required
+              />
+
+              <input
+                type="text"
+                placeholder="Name"
+                className="w-full p-3 rounded-xl border bg-white/70 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                onChange={(e) => setName(e.target.value)}
+                /*required*/
+              />
+
+              <input
+                type="text"
+                placeholder="Share a short paragraph about yourself..."
+                className="w-full p-3 rounded-xl border bg-white/70 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                onChange={(e) => setDescription(e.target.value)}
+                /*required*/
               />
 
               <button

@@ -32,6 +32,8 @@ const getEmbedUrl = (url) => {
 };
 
   const handleUpload = async () => {
+  const token = localStorage.getItem("token");  
+  console.log("TOKEN SENT:", token);
   if (!fileLocal && !youtubeUrl) {
     alert("Upload video OR paste YouTube link!");
     return;
@@ -54,6 +56,7 @@ const getEmbedUrl = (url) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": "Bearer " + token 
           },
           body: JSON.stringify({ url: youtubeUrl }),
         }
@@ -66,6 +69,9 @@ const getEmbedUrl = (url) => {
         `http://127.0.0.1:8000/process-video?qtype=${quizType}&bloom=${bloomLevel}`,
         {
           method: "POST",
+          headers: {
+        "Authorization": "Bearer " + token   // 👈 ADD THIS
+        },
           body: formData,
         }
       );
@@ -95,7 +101,11 @@ const getEmbedUrl = (url) => {
     {/* NAVBAR */}
     <nav className="flex justify-between items-center px-8 py-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-md sticky top-0 z-50">
       <h1
-        onClick={() => setScreen("home")}
+        /*onClick={() => setScreen("home")}*/
+        onClick={() => {
+        localStorage.removeItem("token");
+        setScreen("home");
+        }}
         className="text-xl font-bold text-gray-800 dark:text-white cursor-pointer hover:opacity-80 transition"
       >
         🚀 QuizAI

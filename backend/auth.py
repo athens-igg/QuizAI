@@ -1,12 +1,14 @@
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, HTTPException, Depends
-from database import SessionLocal
-from pydantic import BaseModel
+from database import SessionLocal, get_db
+from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 from models import UserDB
 import time
+from fastapi.security import OAuth2PasswordBearer
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 router = APIRouter()
 
 SECRET_KEY = "your_secret_key"
@@ -24,8 +26,10 @@ def get_db():
         db.close()
 
 class User(BaseModel):
-    email: str
+    email: EmailStr
     password: str
+    name: str | None = None
+    description: str | None = None
 
 
 def hash_password(password: str):
@@ -33,8 +37,7 @@ def hash_password(password: str):
 
 
 def verify_password(password, hashed):
-    return pwd_context.verify(password, hashed)
-
+    return pwd_context.verify(password[:72], hashed)
 
 def create_token(username):
     payload = {
@@ -44,6 +47,27 @@ def create_token(username):
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    if not token:
+        raise HTTPException(status_code=401, detail="Token missing")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+
+        if email is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.query(UserDB).filter(UserDB.email == email).first()
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
+
 @router.post("/signup")
 def signup(user: User, db: Session = Depends(get_db)):
     existing_user = db.query(UserDB).filter(UserDB.email == user.email).first()
@@ -52,7 +76,11 @@ def signup(user: User, db: Session = Depends(get_db)):
 
     new_user = UserDB(
         email=user.email,
-        hashed_password=hash_password(user.password)
+        hashed_password=hash_password(user.password),
+        #name=user.name if user.name else get_name_from_email(user.email),
+        name=user.name or user.email.split("@")[0],
+        #description=user.description if user.description else "add a description to enhance your profile"
+        description=user.description or "add a description to enhance your profile"
     )
 
     db.add(new_user)

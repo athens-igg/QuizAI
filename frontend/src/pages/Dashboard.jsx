@@ -1,7 +1,10 @@
-import React from "react";
 
+import React, { useEffect, useState } from "react";
 export default function Dashboard({ setScreen, darkMode }) {
-  const user = {
+  
+  const [user, setUser] = useState(null);
+  const [recentQuizzes, setRecentQuizzes] = useState([]);
+  {/*const user = {
     name: "Ayisha", // later from auth
     email: "ayisha@email.com",
   };
@@ -9,7 +12,31 @@ export default function Dashboard({ setScreen, darkMode }) {
   const recentQuizzes = [
     { title: "Computer Science Basics", score: 4, total: 5 },
     { title: "Networking Intro", score: 3, total: 5 },
-  ];
+  ];*/}
+
+  useEffect(() => {
+  const fetchDashboard = async () => {
+    const token = localStorage.getItem("token");
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/dashboard", {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      const data = await res.json();
+
+      setUser(data.user);
+      setRecentQuizzes(data.recent_quizzes);
+
+    } catch (err) {
+      console.error("Dashboard error:", err);
+    }
+  };
+
+  fetchDashboard();
+}, []);
 
   return (
     <div className="min-h-screen p-6 bg-gray-100 dark:bg-gray-900 transition">
@@ -31,9 +58,9 @@ export default function Dashboard({ setScreen, darkMode }) {
       {/* USER CARD */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-          👋 Welcome, {user.name}
+          👋 Welcome, {user?.name || "User"}
         </h2>
-        <p className="text-gray-500 dark:text-gray-300">{user.email}</p>
+        <p className="text-gray-500 dark:text-gray-300">{user?.email || ""}</p>
       </div>
 
       {/* STATS */}
@@ -68,7 +95,10 @@ export default function Dashboard({ setScreen, darkMode }) {
           📚 Recent Quizzes
         </h2>
 
-        {recentQuizzes.map((quiz, i) => (
+        {recentQuizzes.length === 0 ? (
+          <p className="text-gray-500">No quizzes yet</p>
+        ) : (
+        recentQuizzes.map((quiz, i) => (
           <div
             key={i}
             className="flex justify-between items-center border-b py-3 last:border-none"
@@ -81,7 +111,7 @@ export default function Dashboard({ setScreen, darkMode }) {
               {quiz.score}/{quiz.total}
             </span>
           </div>
-        ))}
+        )))}
       </div>
 
       {/* ACTION */}
